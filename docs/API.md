@@ -27,6 +27,28 @@ Fluent builder: `.setDepositor().setBeneficiary().setAmount().build()`
 - `requestChallenge(apiUrl, address, options?)` — get signing challenge with retry-aware backend transport
 - `verifyAndGetToken(apiUrl, address, signature, options?)` — exchange signature for JWT with retry-aware backend transport
 
+## Validation Schemas
+Zod runtime schemas (`src/schemas.ts`) — the same ones the SDK uses internally — exported from
+the package root so frontend code can validate form/input data before calling the SDK, without
+re-implementing the rules:
+
+- `StellarAddressSchema`, `ContractIdSchema`, `StroopsSchema`, `NetworkSchema` — primitives
+- `CreateEscrowSchema`, `ReleaseEscrowSchema`, `DisputeEscrowSchema` — escrow operation inputs
+- `ClientConfigSchema` — `new TrustFlowClient(...)` config
+- Inferred types `CreateEscrowInput`, `ReleaseEscrowInput`, `DisputeEscrowInput` are exported
+  alongside their schemas. (`Network`/`ClientConfig` are not re-exported under those names from
+  the root — they'd collide with the existing plain TS types of the same name; derive them
+  yourself with `z.infer<typeof ClientConfigSchema>` / `z.infer<typeof NetworkSchema>` if needed.)
+
+```typescript
+import { CreateEscrowSchema } from '@trustflow/sdk';
+
+const result = CreateEscrowSchema.safeParse(formValues);
+if (!result.success) {
+  showFormErrors(result.error.flatten());
+}
+```
+
 ## Backend API Retry Behavior
 - Backend API endpoints now use a shared Axios transport configured with `axios-retry`.
 - Default retry policy: 3 retries, exponential backoff (250ms base, 2000ms max cap).
