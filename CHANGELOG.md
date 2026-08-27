@@ -1,6 +1,15 @@
 # Changelog
 
 ## [Unreleased]
+- Exported the Zod validation schemas from `src/schemas.ts` (`StellarAddressSchema`,
+  `ContractIdSchema`, `StroopsSchema`, `NetworkSchema`, `CreateEscrowSchema`,
+  `ReleaseEscrowSchema`, `DisputeEscrowSchema`, `ClientConfigSchema`, plus the `*Input` inferred
+  types) from the package root (#45) so consumers — notably frontend form validation — can reuse
+  the same rules the SDK enforces internally instead of duplicating them. The schemas' inferred
+  `Network` and `ClientConfig` type aliases are intentionally **not** re-exported from the root
+  barrel: those names already exist as plain TS types in `src/types.ts`, and re-exporting both
+  via `export *` produces an ambiguous-export error; import them directly from `../schemas` if
+  needed. No new runtime dependency — `zod` was already added in #45.
 - **Breaking changes: none.** Everything below is additive; existing `saveSession`/`loadSession`/
   `clearSession` and `MultiSigEscrowClient` call signatures are unchanged. See the "Compatibility
   & migration" note at the top of `docs/spikes/issue-79-retry-session-multisig.md`.

@@ -15,4 +15,20 @@ export { TrustFlowClient } from './client';
 export { TrustFlowError } from './errors';
 export type { TrustFlowErrorCode } from './errors';
 
+// Zod runtime validation schemas (#45) — re-exported by name rather than
+// `export *` because `Network` and `ClientConfig` already exist as plain
+// TS types from './types'; only the schema objects and the composite
+// "*Input" types are exposed here to avoid ambiguous re-exports.
+export {
+  StellarAddressSchema,
+  ContractIdSchema,
+  StroopsSchema,
+  NetworkSchema,
+  CreateEscrowSchema,
+  ReleaseEscrowSchema,
+  DisputeEscrowSchema,
+  ClientConfigSchema,
+} from './schemas';
+export type { CreateEscrowInput, ReleaseEscrowInput, DisputeEscrowInput } from './schemas';
+
 export const SDK_VERSION = '0.1.0';
