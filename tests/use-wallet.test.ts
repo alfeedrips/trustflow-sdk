@@ -2,6 +2,7 @@
 import { renderHook, act } from '@testing-library/react';
 import { useWallet } from '../src/hooks/useWallet';
 import { connectWallet, disconnectWallet } from '../src/wallet/connect';
+import { saveSession, loadSession } from '../src/auth/session';
 import type { WalletConnection } from '../src/wallet/types';
 
 jest.mock('../src/wallet/connect', () => ({
@@ -15,7 +16,11 @@ const mockDisconnect = disconnectWallet as jest.Mock;
 const connection: WalletConnection = { type: 'freighter', publicKey: 'GA', network: 'TESTNET' };
 
 describe('useWallet', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    sessionStorage.clear();
+  });
 
   it('starts disconnected', () => {
     const { result } = renderHook(() => useWallet());
@@ -135,6 +140,62 @@ describe('useWallet', () => {
     expect(mockDisconnect).toHaveBeenCalledTimes(1);
     expect(result.current.wallet).toBeNull();
     expect(result.current.isConnected).toBe(false);
+  });
+
+  it('revokes all persisted session state on disconnect (#347)', async () => {
+    mockConnect.mockResolvedValueOnce(connection);
+    mockDisconnect.mockResolvedValueOnce(undefined);
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    // Unscoped session + account-scoped session + a legacy key, split across
+    // both browser storages.
+    saveSession('tok-unscoped', 'GABC', Date.now() + 60_000);
+    saveSession('tok-alice', 'GALICE', Date.now() + 60_000, 'alice');
+    localStorage.setItem('trustflow_refresh', 'refresh-tok');
+    sessionStorage.setItem('trustflow_token:bob', 'tok-bob');
+    localStorage.setItem('unrelated_app_key', 'keep-me');
+
+    await act(async () => {
+      await result.current.disconnect();
+    });
+
+    expect(loadSession()).toBeNull();
+    expect(loadSession('alice')).toBeNull();
+    expect(localStorage.getItem('trustflow_token')).toBeNull();
+    expect(localStorage.getItem('trustflow_address')).toBeNull();
+    expect(localStorage.getItem('trustflow_expires_at')).toBeNull();
+    expect(localStorage.getItem('trustflow_refresh')).toBeNull();
+    expect(sessionStorage.getItem('trustflow_token:bob')).toBeNull();
+    // Keys outside the SDK's namespace are untouched.
+    expect(localStorage.getItem('unrelated_app_key')).toBe('keep-me');
+    expect(result.current.wallet).toBeNull();
+  });
+
+  it('still revokes session state when the wallet-level disconnect rejects (#347)', async () => {
+    mockConnect.mockResolvedValueOnce(connection);
+    mockDisconnect.mockRejectedValueOnce(new Error('freighter disconnected'));
+    const { result } = renderHook(() => useWallet());
+
+    await act(async () => {
+      await result.current.connect();
+    });
+
+    saveSession('tok123', 'GABC', Date.now() + 60_000);
+    localStorage.setItem('trustflow_nonce', 'challenge-nonce');
+
+    await act(async () => {
+      await expect(result.current.disconnect()).rejects.toThrow('freighter disconnected');
+    });
+
+    // The error still propagates, but no cached JWT/nonce outlives the call.
+    expect(localStorage.getItem('trustflow_token')).toBeNull();
+    expect(localStorage.getItem('trustflow_nonce')).toBeNull();
+    expect(loadSession()).toBeNull();
+    expect(result.current.wallet).toBeNull();
   });
 
   it('flags isRejected when connection is rejected by user and allows immediate retry', async () => {

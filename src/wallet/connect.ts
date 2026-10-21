@@ -4,6 +4,12 @@ import { getFreighter } from './freighter';
 import { getAlbedo } from './albedo';
 import { TrustFlowError } from '../errors';
 
+/** Albedo names the public network `public` or `pubnet`; the SDK calls it `MAINNET`. */
+function normalizeAlbedoNetwork(name: string): string {
+  const upper = name.toUpperCase();
+  return upper === 'PUBLIC' || upper === 'PUBNET' ? 'MAINNET' : upper;
+}
+
 /**
  * Attempts to establish a connection with the specified Stellar wallet.
  * If the user rejects the connection dialog, a retryable TrustFlowError with
@@ -44,7 +50,9 @@ export async function connectWallet(type: WalletType = 'freighter'): Promise<Wal
       if (!res?.pubkey) {
         throw TrustFlowError.userRejected('User rejected Albedo connection');
       }
-      return { type: 'albedo', publicKey: res.pubkey, network: 'TESTNET' };
+      // Same fallback as the Freighter path when the wallet does not report a network.
+      const network = res.network ? normalizeAlbedoNetwork(res.network) : 'TESTNET';
+      return { type: 'albedo', publicKey: res.pubkey, network };
     } catch (e: unknown) {
       if (isWalletRejection(e)) {
         throw TrustFlowError.userRejected(

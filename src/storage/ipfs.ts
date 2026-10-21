@@ -7,7 +7,46 @@ import { createApiHttpClient, toApiErrorMessage } from '../utils/http';
 import type { ApiRetryConfig } from '../utils/http';
 import type { HttpInterceptors } from '../utils/interceptors';
 import { TrustFlowError } from '../errors';
-import { createCipheriv, createDecipheriv, randomBytes, createPublicKey } from 'crypto';
+import { randomBytes } from '../utils/crypto';
+
+/**
+ * Lazily resolves Node's `crypto` module so browser bundles never see a
+ * static `import ... from 'crypto'` (which forces Webpack 5 users into
+ * polyfills — enforced by tests/bundler-compat.test.ts). Only the pieces
+ * this module needs are typed, structurally, to avoid importing any
+ * `crypto` types (type-only imports are still static imports to bundlers).
+ */
+function requireNodeCrypto(): {
+  createCipheriv(
+    alg: string,
+    key: Uint8Array,
+    iv: Uint8Array,
+  ): {
+    update(data: Uint8Array): Buffer;
+    final(): Buffer;
+    getAuthTag(): Buffer;
+  };
+  createDecipheriv(
+    alg: string,
+    key: Uint8Array,
+    iv: Uint8Array,
+  ): {
+    update(data: Uint8Array): Buffer;
+    final(): Buffer;
+    setAuthTag(tag: Uint8Array): void;
+  };
+} {
+  const modName = 'crypto';
+  const req = typeof require !== 'undefined' ? require : undefined;
+  const nodeCrypto = req ? req(modName) : undefined;
+  if (!nodeCrypto) {
+    throw new TrustFlowError(
+      'AES-256-GCM encryption/decryption requires the Node.js crypto module, which is not available in this environment',
+      'UNSUPPORTED_ENVIRONMENT',
+    );
+  }
+  return nodeCrypto;
+}
 
 /** Default upload endpoint — a raw-body IPFS upload API (e.g. web3.storage-compatible). */
 const DEFAULT_IPFS_API_URL = 'https://api.web3.storage/upload';
@@ -247,19 +286,23 @@ export class IPFSStorage {
       throw TrustFlowError.validation('key', 'Encryption key must be exactly 32 bytes (256 bits)');
     }
     try {
+      const { createCipheriv } = requireNodeCrypto();
       const iv = randomBytes(12);
-      const data = typeof plaintext === 'string' ? Buffer.from(plaintext, 'utf8') : Buffer.from(plaintext);
+      const data =
+        typeof plaintext === 'string' ? Buffer.from(plaintext, 'utf8') : Buffer.from(plaintext);
       const cipher = createCipheriv('aes-256-gcm', key, iv);
       const encrypted = Buffer.concat([cipher.update(data), cipher.final()]);
       const tag = cipher.getAuthTag();
 
       return {
-        iv: iv.toString('base64'),
+        // Buffer.from: the shared randomBytes helper returns a plain
+        // Uint8Array, whose toString() takes no encoding argument.
+        iv: Buffer.from(iv).toString('base64'),
         data: encrypted.toString('base64'),
         tag: tag.toString('base64'),
       };
     } catch (e) {
-      throw TrustFlowError.wrap(e, 'encryption failed');
+      throw TrustFlowError.wrap(e, 'ENCRYPTION_ERROR');
     }
   }
 
@@ -276,6 +319,7 @@ export class IPFSStorage {
       throw TrustFlowError.validation('key', 'Decryption key must be exactly 32 bytes (256 bits)');
     }
     try {
+      const { createDecipheriv } = requireNodeCrypto();
       const iv = Buffer.from(encrypted.iv, 'base64');
       const data = Buffer.from(encrypted.data, 'base64');
       const tag = Buffer.from(encrypted.tag, 'base64');
@@ -284,7 +328,7 @@ export class IPFSStorage {
       decipher.setAuthTag(tag);
       return Buffer.concat([decipher.update(data), decipher.final()]);
     } catch (e) {
-      throw TrustFlowError.wrap(e, 'decryption failed — likely invalid key or corrupted data');
+      throw TrustFlowError.wrap(e, 'DECRYPTION_ERROR');
     }
   }
 }

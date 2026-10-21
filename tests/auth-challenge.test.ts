@@ -176,6 +176,26 @@ describe('authenticateWithWallet', () => {
         expect(result.expiresAt).toBeGreaterThanOrEqual(expectedDefaultExpiry - 1000);
         expect(result.expiresAt).toBeLessThanOrEqual(expectedDefaultExpiry + 1000);
     });
+
+    it('derives expiresAt from the JWT when global Buffer is unavailable (#431)', async () => {
+        const g = globalThis as { Buffer?: typeof Buffer };
+        const originalBuffer = g.Buffer;
+        mockHttpGet.mockResolvedValueOnce({ data: { challenge } });
+        mockHttpPost.mockResolvedValueOnce({ data: { token } });
+        const mockWallet = { signMessage: jest.fn().mockResolvedValue(signature) };
+
+        delete g.Buffer;
+        try {
+            const result = await authenticateWithWallet('https://api.trustflow.xyz', address, mockWallet);
+
+            // The atob fallback reads the real exp (1999999999s) instead of
+            // silently collapsing to the 15-minute default.
+            expect(result.expiresAt).toBe(1999999999000);
+            expect(saveSession).toHaveBeenCalledWith(token, address, 1999999999000, undefined);
+        } finally {
+            g.Buffer = originalBuffer;
+        }
+    });
 });
 
 describe('signMessageWithKeypair', () => {

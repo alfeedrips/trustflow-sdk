@@ -6,4 +6,3 @@ export type {
   SubmitRevealResult,
   SubmitRevealSDKResult,
 } from '../types/juror';
-

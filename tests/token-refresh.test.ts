@@ -83,6 +83,63 @@ describe('decodeJwtExpMs', () => {
   it('returns null for unparseable payload', () => {
     expect(decodeJwtExpMs('a.!!!.c')).toBeNull();
   });
+
+  it('decodes a base64url payload with omitted padding (RFC 4648 §5)', () => {
+    const expSeconds = 1800000000;
+    // '~' and '?' force '+' and '/' into the base64, so the url-safe variant
+    // genuinely contains '-'/'_' once normalized.
+    const json = JSON.stringify({ sub: 'GTEST', exp: expSeconds, pad: '~~~~~?????' });
+    const b64url = Buffer.from(json)
+      .toString('base64')
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '');
+    expect(b64url).toMatch(/[-_]/);
+    expect(decodeJwtExpMs(`e30.${b64url}.sig`)).toBe(expSeconds * 1000);
+  });
+
+  describe('without a global Buffer (browser/worker runtimes)', () => {
+    const g = globalThis as { Buffer?: typeof Buffer; atob?: typeof atob };
+    const originalBuffer = g.Buffer;
+    const originalAtob = g.atob;
+
+    afterEach(() => {
+      g.Buffer = originalBuffer;
+      g.atob = originalAtob;
+    });
+
+    it('falls back to atob and still returns the expiry', () => {
+      const expSeconds = Math.floor(Date.now() / 1000) + 3600;
+      const header = btoa('{"alg":"HS256"}');
+      const payload = btoa(JSON.stringify({ sub: 'GTEST', exp: expSeconds }));
+      delete g.Buffer;
+
+      expect(decodeJwtExpMs(`${header}.${payload}.sig`)).toBe(expSeconds * 1000);
+    });
+
+    it('normalizes base64url before calling atob, which rejects - and _', () => {
+      const expSeconds = 1800000000;
+      const json = JSON.stringify({ exp: expSeconds, pad: '~~~~~?????' });
+      const b64url = Buffer.from(json)
+        .toString('base64')
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
+      delete g.Buffer;
+
+      expect(decodeJwtExpMs(`e30.${b64url}.sig`)).toBe(expSeconds * 1000);
+    });
+
+    it('returns null when neither Buffer nor atob exists', () => {
+      const expSeconds = Math.floor(Date.now() / 1000) + 3600;
+      const header = btoa('{"alg":"HS256"}');
+      const payload = btoa(JSON.stringify({ exp: expSeconds }));
+      delete g.Buffer;
+      delete g.atob;
+
+      expect(decodeJwtExpMs(`${header}.${payload}.sig`)).toBeNull();
+    });
+  });
 });
 
 describe('TokenRefreshManager', () => {

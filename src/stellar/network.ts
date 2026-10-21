@@ -77,7 +77,9 @@ export class NetworkManager {
 
     if (endpoint.consecutiveFailures >= failureThreshold) {
       endpoint.healthy = false;
-      logger.warn(`RPC endpoint ${url} marked unhealthy after ${endpoint.consecutiveFailures} failures`);
+      logger.warn(
+        `RPC endpoint ${url} marked unhealthy after ${endpoint.consecutiveFailures} failures`,
+      );
     }
   }
 

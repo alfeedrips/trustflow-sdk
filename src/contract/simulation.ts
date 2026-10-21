@@ -29,6 +29,12 @@ export interface SimulationOutcome {
   minResourceFee?: string;
   /** The raw Soroban transaction data (base64 XDR) needed for `rpc.assembleTransaction`. */
   transactionData?: any;
+  /**
+   * The full parsed success response. `rpc.assembleTransaction` needs it whole,
+   * including the authorization entries under `result.auth`, which none of the
+   * fields above carry.
+   */
+  response?: rpc.Api.SimulateTransactionSuccessResponse;
 }
 
 /**
@@ -102,6 +108,7 @@ export async function simulateTransaction(
       returnValue: retval ? scValToNative(retval) : undefined,
       minResourceFee: result.minResourceFee,
       transactionData: result.transactionData,
+      response: result,
     };
   } catch (e) {
     // A `TIMEOUT` (or any typed SDK error) keeps its code rather than being

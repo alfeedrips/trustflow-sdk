@@ -45,7 +45,6 @@ export function createVoteCommitment(voteForDepositor: boolean, salt?: Uint8Arra
     throw new TrustFlowError('voteForDepositor must be a boolean', 'VALIDATION_ERROR');
   }
 
-
   let finalSalt: Uint8Array;
   if (salt !== undefined) {
     if (!(salt instanceof Uint8Array) || salt.length !== 32) {
@@ -365,7 +364,8 @@ export class JurorClient {
     if ((p.voteForDepositor as unknown) === 'abstain') {
       return {
         ok: false,
-        error: "Commit-reveal voting does not support 'abstain'. Callers needing 'abstain' must cast a plaintext vote instead.",
+        error:
+          "Commit-reveal voting does not support 'abstain'. Callers needing 'abstain' must cast a plaintext vote instead.",
       };
     }
     if (typeof p.voteForDepositor !== 'boolean') {
@@ -406,4 +406,3 @@ export class JurorClient {
     };
   }
 }
-

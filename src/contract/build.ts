@@ -184,16 +184,16 @@ export function buildRevealArgs(
   }
 
   if (typeof voteForDepositor !== 'boolean') {
-    throw new TrustFlowError(
-      'voteForDepositor must be a boolean',
-      'VALIDATION_ERROR',
-    );
+    throw new TrustFlowError('voteForDepositor must be a boolean', 'VALIDATION_ERROR');
   }
 
   let saltBytes: Buffer;
   if (typeof salt === 'string') {
     if (salt.length !== 64 || !/^[0-9a-fA-F]+$/.test(salt)) {
-      throw new TrustFlowError('Salt hex string must be exactly 64 characters (32 bytes)', 'VALIDATION_ERROR');
+      throw new TrustFlowError(
+        'Salt hex string must be exactly 64 characters (32 bytes)',
+        'VALIDATION_ERROR',
+      );
     }
     saltBytes = Buffer.from(salt, 'hex');
   } else if (salt instanceof Uint8Array) {
@@ -202,7 +202,10 @@ export function buildRevealArgs(
     }
     saltBytes = Buffer.from(salt);
   } else {
-    throw new TrustFlowError('Salt must be a 32-byte Uint8Array or 64-character hex string', 'VALIDATION_ERROR');
+    throw new TrustFlowError(
+      'Salt must be a 32-byte Uint8Array or 64-character hex string',
+      'VALIDATION_ERROR',
+    );
   }
 
   return [
@@ -212,4 +215,3 @@ export function buildRevealArgs(
     nativeToScVal(saltBytes, { type: 'bytes' }),
   ];
 }
-

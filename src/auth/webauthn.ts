@@ -1,8 +1,8 @@
 import { Keypair } from '@stellar/stellar-sdk';
-import type { TrustFlowClient } from '../client';
 import { TrustFlowError } from '../errors';
 import type { SDKResult } from '../types/index';
 import { logger } from '../utils/logger';
+import { randomBytes } from '../utils/crypto';
 
 export interface WebAuthnCredentialOptions {
   /** Credential ID (base64url encoded) returned from registration */
@@ -38,12 +38,6 @@ export interface WebAuthnSignatureResponse {
  * Enables passwordless, phishing-resistant authentication using platform authenticators.
  */
 export class WebAuthnManager {
-  private readonly client: TrustFlowClient;
-
-  constructor(client: TrustFlowClient) {
-    this.client = client;
-  }
-
   /**
    * Creates a registration challenge for a new WebAuthn passkey.
    *
@@ -61,16 +55,15 @@ export class WebAuthnManager {
    * });
    * ```
    */
-  createRegistrationChallenge(options: WebAuthnRegistrationOptions): SDKResult<PublicKeyCredentialCreationOptions> {
+  createRegistrationChallenge(
+    options: WebAuthnRegistrationOptions,
+  ): SDKResult<PublicKeyCredentialCreationOptions> {
     try {
-      const challenge = new Uint8Array(32);
-      if (typeof window !== 'undefined' && window.crypto) {
-        window.crypto.getRandomValues(challenge);
-      } else {
-        // Node.js environment
-        const crypto = require('crypto');
-        crypto.randomFillSync(challenge);
-      }
+      // WebCrypto-first with a Node fallback, from the shared helper — the
+      // previous inline window/require branching duplicated that logic here.
+      // The copy into a fresh Uint8Array keeps the ArrayBuffer-backed type
+      // PublicKeyCredentialCreationOptions expects.
+      const challenge = new Uint8Array(randomBytes(32));
 
       const credentialCreationOptions: PublicKeyCredentialCreationOptions = {
         challenge,
@@ -105,7 +98,7 @@ export class WebAuthnManager {
       logger.error('Failed to create WebAuthn registration challenge', { error: e });
       return {
         ok: false,
-        error: TrustFlowError.wrap(e, 'webauthn registration challenge creation failed').message,
+        error: TrustFlowError.wrap(e, 'AUTH_ERROR').message,
       };
     }
   }
@@ -125,18 +118,32 @@ export class WebAuthnManager {
    * const accountAddress = keypair.publicKey(); // Use as Soroban smart account
    * ```
    */
-  deriveSmartAccountKeypair(credential: WebAuthnCredentialOptions, userId: string): SDKResult<Keypair> {
+  deriveSmartAccountKeypair(
+    credential: WebAuthnCredentialOptions,
+    userId: string,
+  ): SDKResult<Keypair> {
     try {
-      const crypto = require('crypto');
+      // HMAC-SHA256 is synchronous, so Node's crypto module is required here
+      // (WebCrypto's subtle.digest/hmac are async-only and this method is
+      // sync by contract). Lazy require keeps bundlers from seeing a static
+      // Node built-in import.
+      const modName = 'crypto';
+      const req = typeof require !== 'undefined' ? require : undefined;
+      const nodeCrypto = req ? req(modName) : undefined;
+      if (!nodeCrypto) {
+        throw new Error('WebAuthn keypair derivation requires the Node.js crypto module');
+      }
 
       // Derive a deterministic seed from credential and user ID
-      const hmac = crypto.createHmac('sha256', Buffer.from(userId, 'base64url'));
+      const hmac = nodeCrypto.createHmac('sha256', Buffer.from(userId, 'base64url'));
       hmac.update(credential.publicKey);
       hmac.update(credential.id);
-      const seed = hmac.digest();
+      const seed = hmac.digest(); // 32 bytes — exactly an ed25519 seed
 
-      // Create a keypair from the derived seed
-      const keypair = Keypair.fromSecret(Buffer.concat([Buffer.from([0]), seed.slice(0, 32)]));
+      // Create a keypair from the derived raw seed. (This previously fed a
+      // 33-byte Buffer into `Keypair.fromSecret`, which expects a strkey
+      // string, so derivation always failed at runtime.)
+      const keypair = Keypair.fromRawEd25519Seed(seed);
 
       logger.debug('WebAuthn smart account keypair derived', { credentialId: credential.id });
       return {
@@ -147,7 +154,7 @@ export class WebAuthnManager {
       logger.error('Failed to derive WebAuthn smart account keypair', { error: e });
       return {
         ok: false,
-        error: TrustFlowError.wrap(e, 'webauthn keypair derivation failed').message,
+        error: TrustFlowError.wrap(e, 'AUTH_ERROR').message,
       };
     }
   }
@@ -188,7 +195,10 @@ export class WebAuthnManager {
         counter: signature.counter,
       };
 
-      logger.debug('WebAuthn signature verified', { credentialId: credential.id, counter: signature.counter });
+      logger.debug('WebAuthn signature verified', {
+        credentialId: credential.id,
+        counter: signature.counter,
+      });
       return {
         ok: true,
         data: updated,
@@ -197,7 +207,7 @@ export class WebAuthnManager {
       logger.error('WebAuthn signature verification failed', { error: e });
       return {
         ok: false,
-        error: TrustFlowError.wrap(e, 'webauthn signature verification failed').message,
+        error: TrustFlowError.wrap(e, 'AUTH_ERROR').message,
       };
     }
   }

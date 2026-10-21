@@ -121,7 +121,10 @@ export class ProfileClient {
     }
     if (params.displayName !== undefined) {
       if (typeof params.displayName !== 'string' || params.displayName.length > 100) {
-        return { ok: false, error: 'displayName must be a string with a maximum of 100 characters' };
+        return {
+          ok: false,
+          error: 'displayName must be a string with a maximum of 100 characters',
+        };
       }
     }
     if (params.bio !== undefined) {
