@@ -47,6 +47,12 @@ export interface MultiAccountConfig {
 }
 
 /**
+ * Custom RPC headers per client. Kept outside the instance's own properties so
+ * `console.log`, `util.inspect` and `JSON.stringify` never print their values (#344).
+ */
+const rpcHeadersByClient = new WeakMap<TrustFlowClient, Record<string, string>>();
+
+/**
  * TrustFlowClient is the main entry point for interacting with the TrustFlow Protocol.
  * It handles network configuration, RPC connections, and provides access to escrow operations.
  *
@@ -188,6 +194,7 @@ export class TrustFlowClient {
     this.apiKey = config.apiKey;
     this.apiVersion = config.apiVersion ?? DEFAULT_API_VERSION;
     this.timeoutMs = config.timeoutMs;
+    rpcHeadersByClient.set(this, { ...config.rpcHeaders });
     this.retryConfig = config.ipfs ? { ...config.retry, ...config.ipfs.retry } : config.retry;
     this.storage = new IPFSStorage(config.ipfs);
     this.balanceCache = config.balanceCache
@@ -668,8 +675,20 @@ export class TrustFlowClient {
   getSorobanServer(): rpc.Server {
     this.sorobanServer ??= new rpc.Server(this.rpcUrl, {
       allowHttp: Config.isAllowHttp() || this.rpcUrl.startsWith('http://'),
+      headers: this.getRpcHeaders(),
     });
     return this.sorobanServer;
+  }
+
+  /**
+   * Gets the HTTP headers sent with every Soroban RPC request: the configured
+   * {@link ClientConfig.rpcHeaders} plus `Content-Type: application/json`,
+   * which always wins so a custom header cannot drop the JSON-RPC content type.
+   *
+   * @returns A fresh copy, so callers cannot mutate the client's headers
+   */
+  getRpcHeaders(): Record<string, string> {
+    return { ...rpcHeadersByClient.get(this), 'Content-Type': 'application/json' };
   }
 
   /**

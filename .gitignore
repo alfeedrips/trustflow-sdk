@@ -1,7 +1,5 @@
 node_modules/
 dist/
-.env
-.env.local
 coverage/
 .jest-cache/
 *.js.map
@@ -14,3 +12,4 @@ dist
 
 # Bundler example build output
 examples/bundlers/*/dist/
+config.bat

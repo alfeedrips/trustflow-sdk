@@ -180,6 +180,7 @@ export class EscrowMonitor {
   private lastLedger?: number;
   private lastCursor?: string;
   private consecutiveFailures = 0;
+  private catchingUp = false;
 
   /**
    * Register a handler for `type`, narrowed to that event's payload (#287).
@@ -431,6 +432,7 @@ export class EscrowMonitor {
     const baseBackoffMs = options.baseBackoffMs ?? 1000;
     const maxBackoffMs = options.maxBackoffMs ?? 30000;
     this.consecutiveFailures = 0;
+    this.catchingUp = false;
 
     const remember = (key: string): void => {
       if (this.seenSet.has(key)) return;
@@ -476,7 +478,8 @@ export class EscrowMonitor {
         return;
       }
 
-      if (this.consecutiveFailures > 0) {
+      const recovering = this.consecutiveFailures > 0;
+      if (recovering) {
         this.reconnectCallback?.({ cursor, failures: this.consecutiveFailures });
         logger.info('Event polling reconnected', { failures: this.consecutiveFailures });
       }
@@ -485,9 +488,13 @@ export class EscrowMonitor {
       const fresh = events.filter(
         (e): e is ParsedTrustFlowEvent => Boolean(e) && typeof e.type === 'string',
       );
+      // Track keys accepted earlier in this same batch too, so a page that repeats an
+      // event (common when the RPC resends the cursor's event) dispatches it once.
+      const batchKeys = new Set<string>();
       const deduped = fresh.filter((e) => {
         const key = e.pagingToken || e.id;
-        if (this.seenSet.has(key)) return false;
+        if (this.seenSet.has(key) || batchKeys.has(key)) return false;
+        batchKeys.add(key);
         return true;
       });
 
@@ -521,7 +528,14 @@ export class EscrowMonitor {
         });
       }
 
-      schedule(intervalMs);
+      // After a reconnect, poll again straight away while new events keep arriving, so the
+      // missed ledgers are replayed in order before live polling resumes at `intervalMs`.
+      if (deduped.length === 0) {
+        this.catchingUp = false;
+      } else if (recovering) {
+        this.catchingUp = true;
+      }
+      schedule(this.catchingUp ? 0 : intervalMs);
     };
 
     void tick();

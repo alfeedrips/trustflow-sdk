@@ -235,7 +235,10 @@ export class TransactionPipeline {
     // constructor option, so request timeouts are enforced one layer up —
     // every stage's RPC calls are bounded by `withTimeout` in `withRetry`,
     // defaulting to the client-wide `ClientConfig.timeoutMs`.
-    this.server = new rpc.Server(client.rpcUrl, { allowHttp: Config.isAllowHttp() });
+    this.server = new rpc.Server(client.rpcUrl, {
+      allowHttp: Config.isAllowHttp(),
+      headers: client.getRpcHeaders(),
+    });
   }
 
   /**

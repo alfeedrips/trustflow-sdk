@@ -68,6 +68,26 @@ export async function signWithFreighter(
     throw TrustFlowError.signingFailed(e instanceof Error ? e.message : String(e), e);
   }
 
+  return verifySignedEnvelope(transaction, signedXDR, options.expectedSigner);
+}
+
+/**
+ * Checks a wallet's signed envelope against the transaction it was asked to
+ * sign: it must parse, be the same kind of transaction with the same hash,
+ * carry more signatures than the original, and (when `expectedSigner` is set)
+ * include a valid signature from that account. Shared by every wallet adapter.
+ *
+ * @param transaction - The transaction that was sent to the wallet
+ * @param signedXDR - The base64 envelope the wallet returned
+ * @param expectedSigner - Optional `G...` public key whose signature must be new
+ * @returns The verified envelope and its hash
+ * @throws {TrustFlowError} `SIGNING_ERROR` when the response does not verify
+ */
+export function verifySignedEnvelope(
+  transaction: SignableTransaction,
+  signedXDR: string,
+  expectedSigner?: string,
+): SignedTransaction {
   let signed: SignableTransaction;
   try {
     signed = TransactionBuilder.fromXDR(signedXDR, transaction.networkPassphrase);
@@ -86,14 +106,12 @@ export async function signWithFreighter(
     throw TrustFlowError.signingFailed('wallet did not add a signature');
   }
 
-  if (options.expectedSigner) {
-    const signer = Keypair.fromPublicKey(options.expectedSigner);
+  if (expectedSigner) {
+    const signer = Keypair.fromPublicKey(expectedSigner);
     const existing = new Set(transaction.signatures.map((s) => s.signature().toString('base64')));
     const added = signed.signatures.filter((s) => !existing.has(s.signature().toString('base64')));
     if (!added.some((s) => signer.verify(hash, s.signature()))) {
-      throw TrustFlowError.signingFailed(
-        `no new signature from expected signer ${options.expectedSigner}`,
-      );
+      throw TrustFlowError.signingFailed(`no new signature from expected signer ${expectedSigner}`);
     }
   }
 

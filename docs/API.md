@@ -14,6 +14,7 @@ new TrustFlowClient(config: ClientConfig)
 - `contractId` — Soroban contract ID for TrustFlow escrow (required)
 - `network` — Network type ('TESTNET' or 'MAINNET'), defaults to TESTNET
 - `rpcUrl` — Optional custom Soroban RPC URL
+- `rpcHeaders` — Optional extra headers sent with every Soroban RPC request, such as an API key for a managed RPC provider. Values are kept out of SDK error logs and `inspect` output
 - `apiBaseUrl` — Optional TrustFlow API base URL for backend integration
 - `apiKey` — Optional API key for authenticated requests
 - `ipfs` — Optional IPFS configuration for `storage.upload()`
@@ -392,6 +393,10 @@ const uri = generateSep7Uri(preparedXdr, {
 
 - `getAlbedo()` — Gets the Albedo wallet adapter
   - Returns the Albedo instance (does not throw if unavailable; returns null or throws on actual use)
+
+- `signWithAlbedo(transaction, network, options?)` — Signs a `Transaction` or `FeeBumpTransaction` with Albedo and verifies the response
+  - Returns `Promise<{ xdr, hash }>`; the `xdr` can be submitted to Horizon as-is
+  - Throws `UNAUTHORIZED` when Albedo is not installed, `USER_REJECTED` when the user declines, and `SIGNING_ERROR` for an unsupported network or an envelope that does not verify
 
 ### Types
 
@@ -962,7 +967,7 @@ Manages wallet connection state (Freighter, Albedo, etc.).
 ```typescript
 const { balance, loading, error } = useBalance(client, address);
 ```
-Fetches XLM balance for a Stellar address, automatically re-fetching and resetting when address changes.
+Fetches XLM balance for a Stellar address, automatically re-fetching and resetting when address changes. A balance is only returned for the address it was fetched for: while a new address loads, `balance` is `null` and `loading` is `true`, and responses for the previous address are ignored.
 
 ### `useTransaction`
 ```typescript

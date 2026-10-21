@@ -41,6 +41,13 @@ export interface ClientConfig {
   contractId: string;
   /** Custom Soroban RPC endpoint URL. */
   rpcUrl?: string;
+  /**
+   * Extra HTTP headers sent with every Soroban RPC request, for managed RPC
+   * providers that authenticate by header (an API key, a tracing ID). The
+   * `Content-Type: application/json` header is always set. Header values are
+   * never written to SDK logs or `inspect` output.
+   */
+  rpcHeaders?: Record<string, string>;
   /** Multi-RPC failover configuration (alternative to single rpcUrl). */
   rpcFailover?: RpcFailoverConfig;
   /** Custom Horizon server endpoint URL. */

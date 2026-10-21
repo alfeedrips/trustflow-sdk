@@ -251,4 +251,74 @@ describe('EscrowMonitor resilient polling', () => {
     expect(seenSession2).toContain('ev-1');
     expect(gapsSession2).toHaveLength(0);
   });
+
+  it('dispatches an event once when a single page repeats it', async () => {
+    const monitor = new EscrowMonitor();
+    const seen: string[] = [];
+    monitor.on('escrow_created', (e) => void seen.push(e.id));
+    const e1 = parseEvent(raw('ev-1', 'pt-1', 10))!;
+    let calls = 0;
+
+    monitor.startResilientPolling(
+      10,
+      async () => {
+        calls += 1;
+        return calls === 1 ? [e1, e1] : [];
+      },
+      { baseBackoffMs: 5, maxBackoffMs: 10 },
+    );
+    await waitFor(() => calls >= 1 && seen.length >= 1);
+    monitor.stopPolling();
+
+    expect(seen).toEqual(['ev-1']);
+  });
+
+  it('replays a backlog after reconnecting without waiting for the next live interval', async () => {
+    const monitor = new EscrowMonitor();
+    const seen: string[] = [];
+    monitor.on('escrow_created', (e) => void seen.push(e.id));
+    let calls = 0;
+
+    monitor.startResilientPolling(
+      300,
+      async (cursor) => {
+        calls += 1;
+        // Calls 1 and 2 fail, exhausting the retry, so polling backs off and reconnects.
+        if (calls <= 2) throw new Error('dropped request');
+        if (cursor === undefined) return [parseEvent(raw('ev-1', 'pt-1', 10))!];
+        if (cursor === 'pt-1') return [parseEvent(raw('ev-2', 'pt-2', 11))!];
+        return [];
+      },
+      { baseBackoffMs: 1, maxBackoffMs: 1 },
+    );
+    // The reconnect waits about 300ms; the backlog should then drain at once, well
+    // before a second live interval (~600ms) would have elapsed.
+    await sleep(450);
+    monitor.stopPolling();
+
+    expect(seen).toEqual(['ev-1', 'ev-2']);
+  });
+
+  it('reports the missed ledger range when polling reconnects after a failure', async () => {
+    const monitor = new EscrowMonitor();
+    const gaps: MonitorGapInfo[] = [];
+    monitor.onGapDetected((g) => void gaps.push(g));
+    let calls = 0;
+
+    monitor.startResilientPolling(
+      10,
+      async () => {
+        calls += 1;
+        if (calls === 1) return [parseEvent(raw('ev-1', 'pt-1', 10))!];
+        // Calls 2 and 3 fail, exhausting the retry, so polling goes dark for a while.
+        if (calls <= 3) throw new Error('dropped request');
+        return [parseEvent(raw('ev-2', 'pt-2', 50))!];
+      },
+      { baseBackoffMs: 5, maxBackoffMs: 10 },
+    );
+    await waitFor(() => gaps.length >= 1);
+    monitor.stopPolling();
+
+    expect(gaps[0]).toEqual({ reason: 'ledger-discontinuity', fromLedger: 10, toLedger: 50 });
+  });
 });

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Escrow monitor gap recovery (#343)
+
+- Issue #343: After a reconnect, `EscrowMonitor.startResilientPolling` polls again immediately while new events keep arriving, so missed ledgers are replayed in order before live polling resumes at the normal interval. An event repeated within a single page is now dispatched once; previously only repeats across pages were dropped. A reconnect that reveals a ledger jump still reports it through `onGapDetected` with `fromLedger` and `toLedger`.
+
+### Custom headers for Soroban RPC requests (#344)
+
+- Issue #344: New `ClientConfig.rpcHeaders` option sends extra HTTP headers with every Soroban RPC request, for example an API key or tracing ID for a managed RPC provider. `Content-Type: application/json` is always sent. Header values are kept out of the error logs of `invokeContract` and `simulateContractCall`, which log only the error's name, message and code, and out of `console.log` and `util.inspect` output of the client. Each `TrustFlowClient` exposes its headers through `getRpcHeaders()`, which returns a copy.
+
+### Albedo fee-bump signing (#345)
+
+- Issue #345: Added `signWithAlbedo(transaction, network, options?)` to `@trustflow/sdk/wallet`. It signs both `Transaction` and `FeeBumpTransaction` envelopes, sends the full envelope to Albedo, and verifies the returned XDR with the same checks `signWithFreighter` uses, so the result can be submitted to Horizon. The shared checks now live in `verifySignedEnvelope` in `src/stellar/signing.ts`; `signWithFreighter` behaves as before.
+
+### useBalance resets state on account change (#346)
+
+- Issue #346: `useBalance` no longer shows a balance or error from the previous address while the next one loads. The hook reports `loading: true` and `balance: null` until the new address settles. Responses for a previous address are discarded through an `AbortController` when the address changes or the component unmounts. The underlying Horizon request is not cancelled, because `client.getBalance` does not accept an abort signal yet.
+
 ### Typed milestone expiration return shape (#440)
 
 - Issue #440: `normalizeMilestoneExpiration` now has overloads instead of returning `any`. A single expiration returns `number`, and an array of milestones returns `Array<T & { deadline: number }>`.

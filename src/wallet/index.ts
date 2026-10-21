@@ -1,5 +1,5 @@
 export { getFreighter, isFreighterInstalled } from './freighter';
-export { getAlbedo } from './albedo';
+export { getAlbedo, signWithAlbedo } from './albedo';
 export { connectWallet, disconnectWallet } from './connect';
 export { createFreighterAdapter } from './adapter';
 export { generateSep7Uri, SEP7_MAX_URI_LENGTH } from './sep7';
