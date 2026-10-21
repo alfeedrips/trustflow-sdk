@@ -732,13 +732,18 @@ export class TransactionPipeline {
       this.client.timeoutMs,
     );
     if (reloaded.ok) {
-      // If we successfully reloaded, use the fresh sequence for the fee-bump's inner transaction
+      // If we successfully reloaded, use the fresh sequence for the fee-bump's inner transaction.
+      // The original transaction's absolute timebounds cannot be reused here — `setTimeout`
+      // takes relative seconds — so the rebuilt retry envelope gets a fresh 30s window.
       const freshTx = new TransactionBuilder(reloaded.data, {
         fee: prepared.data.fee,
         networkPassphrase: this.client.getNetworkPassphrase(),
-      }).setTimeout(prepared.data.timebounds?.maxTime ?? 30);
+      }).setTimeout(30);
 
-      for (const op of prepared.data.operations) {
+      // `prepared.data.operations` are parsed operation objects, but
+      // `TransactionBuilder.addOperation` (stellar-base v13+) takes raw
+      // `xdr.Operation`s — re-add those straight from the original envelope.
+      for (const op of prepared.data.toEnvelope().v1().tx().operations()) {
         freshTx.addOperation(op);
       }
       if (prepared.data.memo) {

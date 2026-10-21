@@ -24,7 +24,10 @@ export interface MilestoneCancellationInfo {
  */
 export function filterUnreleasedMilestones(
   escrowOrMilestones:
-    | { milestones?: MilestoneCancellationInfo[]; params?: { milestones?: MilestoneCancellationInfo[] } }
+    | {
+        milestones?: MilestoneCancellationInfo[];
+        params?: { milestones?: MilestoneCancellationInfo[] };
+      }
     | MilestoneCancellationInfo[]
     | number[],
 ): number[] {

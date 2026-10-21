@@ -5,6 +5,9 @@ import type { HttpInterceptors } from './interceptors';
 import { logger } from './logger';
 import { SDK_VERSION, DEFAULT_API_VERSION } from '../constants';
 import { DEFAULT_TIMEOUT_MS, isAxiosTimeoutError, axiosTimeoutMs } from './timeout';
+import { validateRequestSize } from './request-validation';
+import type { RequestValidationConfig } from './request-validation';
+import { TrustFlowError } from '../errors';
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -66,6 +69,13 @@ export interface ApiHttpClientOptions {
   additionalHeaders?: Record<string, string>;
   /** Request/response interceptor hooks applied to every call made by this client. */
   interceptors?: HttpInterceptors;
+  /**
+   * Client-side size limit for JSON request bodies, checked before the request
+   * is sent. An oversized body rejects with a `VALIDATION_ERROR` and no network
+   * call is made. Defaults to 10MB; see {@link RequestValidationConfig}.
+   * Binary and form bodies (such as IPFS uploads) are not measured.
+   */
+  requestValidation?: RequestValidationConfig;
 }
 
 const DEFAULT_RETRY_CONFIG: Required<ApiRetryConfig> = {
@@ -77,6 +87,18 @@ const DEFAULT_RETRY_CONFIG: Required<ApiRetryConfig> = {
 
 /** HTTP methods that are safe to replay without changing server-side state. */
 const IDEMPOTENT_METHODS = new Set(['get', 'head', 'options', 'put', 'delete']);
+
+/**
+ * Whether axios will serialise this body to JSON. Only plain objects and arrays
+ * qualify: binary bodies and form data are sent as-is, and measuring them as
+ * JSON would be wrong and expensive.
+ */
+function isJsonBody(data: unknown): boolean {
+  if (Array.isArray(data)) return true;
+  if (typeof data !== 'object' || data === null) return false;
+  const proto = Object.getPrototypeOf(data);
+  return proto === Object.prototype || proto === null;
+}
 
 /** Internal bookkeeping attached to a request config as it is retried. */
 interface RetryableRequestConfig extends axios.InternalAxiosRequestConfig {
@@ -257,6 +279,15 @@ export function createApiHttpClient(options: ApiHttpClientOptions): AxiosInstanc
 
   installApiRetryInterceptor(instance, retryConfig);
 
+  // Rejects an oversized body before anything is sent. The thrown error is not
+  // an AxiosError, so the retry interceptor rethrows it without replaying.
+  instance.interceptors?.request?.use((config) => {
+    if (isJsonBody(config.data)) {
+      validateRequestSize(config.data, options.requestValidation);
+    }
+    return config;
+  });
+
   // Request/response logging interceptors (optional-chained so unit tests
   // that mock `axios.create` without interceptors keep working).
   instance.interceptors?.request?.use(
@@ -308,6 +339,11 @@ export function createApiHttpClient(options: ApiHttpClientOptions): AxiosInstanc
  * "the server was slow" without string-matching axios internals.
  */
 export function toApiErrorMessage(error: unknown): string {
+  // Errors raised locally by the SDK (such as a rejected oversized body) already
+  // say what went wrong, so they are not labelled as network failures.
+  if (error instanceof TrustFlowError) {
+    return error.message;
+  }
   if (error instanceof AxiosError) {
     const status = error.response?.status;
     const statusText = error.response?.statusText;
