@@ -195,7 +195,6 @@
     "buildRevealArgs",
     "buildVoteArgs",
     "cancelEscrow",
-    "decodeJwtExpMs",
     "destroyAllPoolAgents",
     "detectFeatures",
     "detectRuntime",

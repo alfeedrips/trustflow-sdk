@@ -2,6 +2,7 @@ import {
   saveSession,
   loadSession,
   clearSession,
+  clearAllSessions,
   isSessionExpired,
   configureSessionStorage,
   resetSessionStorage,
@@ -117,6 +118,107 @@ describe('Session management', () => {
 
       expect(() => saveSession('tok', 'GABC')).toThrow('storage unavailable');
       expect(() => loadSession()).toThrow('storage unavailable');
+    });
+  });
+
+  describe('clearAllSessions', () => {
+    // A Storage-shaped mock: clearAllSessions' sweep walks `length`/`key()`,
+    // which the outer describe's minimal localStorage mock does not implement.
+    const localData: Record<string, string> = {};
+    const sessionData: Record<string, string> = {};
+    const toStorage = (data: Record<string, string>) => ({
+      get length() {
+        return Object.keys(data).length;
+      },
+      key: (i: number) => Object.keys(data)[i] ?? null,
+      getItem: (k: string) => data[k] ?? null,
+      setItem: (k: string, v: string) => {
+        data[k] = v;
+      },
+      removeItem: (k: string) => {
+        delete data[k];
+      },
+    });
+
+    beforeAll(() => {
+      (global as any).localStorage = toStorage(localData);
+      (global as any).sessionStorage = toStorage(sessionData);
+    });
+
+    beforeEach(() => {
+      resetSessionStorage();
+      for (const k of Object.keys(localData)) delete localData[k];
+      for (const k of Object.keys(sessionData)) delete sessionData[k];
+    });
+
+    it('removes the unscoped session trio through the active adapter', () => {
+      saveSession('tok', 'GABC', Date.now() + 60_000);
+
+      clearAllSessions();
+
+      expect(loadSession()).toBeNull();
+      expect(localData['trustflow_token']).toBeUndefined();
+      expect(localData['trustflow_address']).toBeUndefined();
+      expect(localData['trustflow_expires_at']).toBeUndefined();
+    });
+
+    it('sweeps every trustflow_-prefixed key from localStorage and sessionStorage', () => {
+      // Unscoped, two scoped sessions, and a legacy key in localStorage.
+      localData['trustflow_token'] = 'tok';
+      localData['trustflow_token:alice'] = 'tok-alice';
+      localData['trustflow_expires_at:bob'] = '123';
+      localData['trustflow_refresh'] = 'refresh';
+      // A scoped session that was persisted to sessionStorage instead.
+      sessionData['trustflow_token:carol'] = 'tok-carol';
+
+      clearAllSessions();
+
+      expect(Object.keys(localData)).toEqual([]);
+      expect(Object.keys(sessionData)).toEqual([]);
+      expect(loadSession('alice')).toBeNull();
+      expect(loadSession('carol')).toBeNull();
+    });
+
+    it('leaves keys outside the trustflow_ namespace untouched', () => {
+      localData['trustflow_token'] = 'tok';
+      localData['other_app'] = 'keep';
+      sessionData['theme'] = 'dark';
+
+      clearAllSessions();
+
+      expect(localData['other_app']).toBe('keep');
+      expect(sessionData['theme']).toBe('dark');
+      expect(localData['trustflow_token']).toBeUndefined();
+    });
+
+    it('clears base keys from a custom adapter while still sweeping browser storage', () => {
+      const backing: Record<string, string> = {
+        trustflow_token: 'custom-tok',
+        'trustflow_token:alice': 'custom-scoped',
+      };
+      const adapter: SessionStorageAdapter = {
+        get: (k) => backing[k] ?? null,
+        set: (k, v) => {
+          backing[k] = v;
+        },
+        remove: (k) => {
+          delete backing[k];
+        },
+      };
+      configureSessionStorage(adapter);
+      localData['trustflow_token'] = 'browser-tok';
+      sessionData['trustflow_nonce'] = 'nonce';
+
+      clearAllSessions();
+
+      // Base keys go through the adapter...
+      expect(backing['trustflow_token']).toBeUndefined();
+      // ...while browser storage is swept regardless of the adapter (scoped
+      // adapter entries can't be enumerated — documented limitation).
+      expect(localData['trustflow_token']).toBeUndefined();
+      expect(sessionData['trustflow_nonce']).toBeUndefined();
+      expect(backing['trustflow_token:alice']).toBe('custom-scoped');
+      resetSessionStorage();
     });
   });
 });

@@ -76,7 +76,7 @@ describe('MultiSigEscrowClient state import/export backward compatibility', () =
     }
   });
 
-  it('imports a snapshot with verified fields correctly', () => {
+  it('downgrades a stored verified flag that does not survive re-verification on import', () => {
     const client = makeClient();
 
     const newSnapshot = {
@@ -104,14 +104,14 @@ describe('MultiSigEscrowClient state import/export backward compatibility', () =
     const importResult = client.importState(newSnapshot);
     expect(importResult.ok).toBe(true);
 
+    // XDR carries no signature from TEST_SIGNER, so the stored `verified: true`
+    // must not count towards the threshold.
     const status = client.getMultiSigStatus('msig-test-456');
     expect(status.ok).toBe(true);
     if (status.ok) {
-      expect(status.data.signaturesCollected).toBe(1);
-      expect(status.data.isReady).toBe(true);
-      expect(status.data.signersSigned).toContain(
-        TEST_SIGNER,
-      );
+      expect(status.data.signaturesCollected).toBe(0);
+      expect(status.data.isReady).toBe(false);
+      expect(status.data.signersSigned).toHaveLength(0);
     }
   });
 

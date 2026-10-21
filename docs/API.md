@@ -315,6 +315,10 @@ After obtaining a token, persist it using the session storage functions:
   
 - `clearSession()` — Removes the token from storage
   
+- `clearAllSessions()` — Purges **every** persisted session artifact: the unscoped token/address/expiry trio via the active storage adapter, plus every `trustflow_`-prefixed key in `localStorage` and `sessionStorage` (account-scoped sessions such as `trustflow_token:<scope>`, legacy refresh-token/nonce keys, etc.)
+  - `useWallet().disconnect()` calls this automatically, so signing out of the wallet also revokes cached auth state — reconnecting requires a fresh signing challenge instead of silently reusing a stored JWT
+  - A custom adapter installed with `configureSessionStorage()` is always cleared of the three base keys; adapters that expose no key enumeration cannot be swept for scope-suffixed entries
+  
 - `configureSessionStorage(adapter)` — Override the storage backend (for Node.js durability or tests)
   ```typescript
   configureSessionStorage({
@@ -328,10 +332,12 @@ After obtaining a token, persist it using the session storage functions:
 
 - `requestChallenge(apiUrl, address, options?)` — get signing challenge with retry-aware backend transport
 - `verifyAndGetToken(apiUrl, address, signature, options?)` — exchange signature for JWT with retry-aware backend transport
+- `decodeJwtExpMs(token)` → `number | null` — extract a JWT's `exp` claim as a UNIX-ms timestamp (base64url-safe; works with or without a global `Buffer`; never throws)
 - `saveSession(token, address, expiresAt?)` — persist session token (auto-detects browser vs Node storage)
 - `loadSession()` → `Session | null` — retrieve saved session token
 - `isSessionExpired(session?)` → `boolean` — check token expiry (client-side estimate)
 - `clearSession()` — remove token from storage
+- `clearAllSessions()` — revoke every persisted session artifact (unscoped, scoped, and legacy keys)
 - `configureSessionStorage(adapter)` — override storage backend
 
 ## Wallet Module

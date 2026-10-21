@@ -10,7 +10,15 @@ import {
 import { isWalletRejection } from './types';
 
 export interface AlbedoWallet {
-  publicKey(params?: { token?: string }): Promise<{ pubkey: string; token: string }>;
+  /**
+   * `network` is the network the wallet is currently on (e.g. `public` or
+   * `testnet`). It is optional because not every Albedo build reports it.
+   */
+  publicKey(params?: { token?: string }): Promise<{
+    pubkey: string;
+    token: string;
+    network?: string;
+  }>;
   tx(params: {
     xdr: string;
     network?: string;

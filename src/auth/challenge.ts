@@ -3,30 +3,13 @@ import type { ApiRetryConfig } from '../utils/http';
 import type { HttpInterceptors } from '../utils/interceptors';
 import { TrustFlowError } from '../errors';
 import { logger } from '../utils/logger';
+import { decodeJwtExpMs } from '../utils/jwt';
 import { saveSession } from './session';
 
 export interface AuthChallenge {
   challenge: string;
   expiresAt: number;
   address: string;
-}
-
-/**
- * Parses a JWT token and extracts the expiry timestamp from the `exp` claim.
- * Returns the expiry as a UNIX timestamp in milliseconds, or null if parsing fails.
- */
-function parseJwtExpiry(token: string): number | null {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf-8'));
-    if (typeof payload.exp === 'number') {
-      return payload.exp * 1000; // Convert from seconds to milliseconds
-    }
-    return null;
-  } catch {
-    return null;
-  }
 }
 
 export interface AuthRequestOptions {
@@ -185,7 +168,7 @@ export async function authenticateWithWallet(
   const token = await verifyAndGetToken(apiUrl, address, signature, options);
 
   // Step 5: Parse JWT expiry from token (backend uses expiresIn: '24h')
-  const expiresAt = parseJwtExpiry(token) ?? Date.now() + 15 * 60_000;
+  const expiresAt = decodeJwtExpMs(token) ?? Date.now() + 15 * 60_000;
 
   // Step 6: Persist session
   saveSession(token, address, expiresAt, options.scope);

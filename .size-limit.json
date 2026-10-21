@@ -2,36 +2,51 @@
   {
     "path": "dist/index.mjs",
     "limit": "80 KB",
-    "name": "Root entry (.)"
+    "name": "Root entry (.)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod"]
   },
   {
     "path": "dist/hooks/index.mjs",
     "limit": "30 KB",
-    "name": "React entry (./react)"
+    "name": "React entry (./react)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod", "react", "react-dom"]
   },
   {
     "path": "dist/escrow/index.mjs",
     "limit": "30 KB",
-    "name": "Escrow entry (./escrow)"
+    "name": "Escrow entry (./escrow)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod"]
   },
   {
     "path": "dist/wallet/index.mjs",
     "limit": "20 KB",
-    "name": "Wallet entry (./wallet)"
+    "name": "Wallet entry (./wallet)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod"]
   },
   {
     "path": "dist/utils/index.mjs",
     "limit": "25 KB",
-    "name": "Utils entry (./utils)"
+    "name": "Utils entry (./utils)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod"]
   },
   {
     "path": "dist/node/index.mjs",
     "limit": "20 KB",
-    "name": "Node entry (./node)"
+    "name": "Node entry (./node)",
+    "ignore": [
+      "@stellar/stellar-sdk",
+      "axios",
+      "zod",
+      "http",
+      "https",
+      "node:http",
+      "node:https"
+    ]
   },
   {
     "path": "dist/testing/index.mjs",
     "limit": "35 KB",
-    "name": "Testing entry (./testing)"
+    "name": "Testing entry (./testing)",
+    "ignore": ["@stellar/stellar-sdk", "axios", "zod"]
   }
 ]

@@ -479,7 +479,9 @@ export class MockWalletAdapter {
   private nextRejection: Error | null = null;
 
   constructor(
-    optionsOrKey: string | MockWalletAdapterOptions = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    optionsOrKey:
+      | string
+      | MockWalletAdapterOptions = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
   ) {
     if (typeof optionsOrKey === 'string') {
       this.publicKey = optionsOrKey;
