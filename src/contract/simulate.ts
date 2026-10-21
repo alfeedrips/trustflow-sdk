@@ -1,6 +1,6 @@
 import type { TrustFlowClient } from '../client';
 import { TrustFlowError } from '../errors';
-import { logger } from '../utils/logger';
+import { describeError, logger } from '../utils/logger';
 import type { ReadContractStateOptions } from './read';
 import { simulateTransaction, type SimulationOutcome } from './simulation';
 
@@ -132,7 +132,7 @@ export async function simulateContractCall(
     // A `TIMEOUT` (or any typed SDK error) keeps its code rather than being
     // re-wrapped as a generic simulation failure.
     if (e instanceof TrustFlowError) throw e;
-    logger.error('Contract simulation failed', { error: e });
+    logger.error('Contract simulation failed', { error: describeError(e) });
     throw new TrustFlowError('Simulation failed', 'SIMULATION_ERROR', e);
   }
 }

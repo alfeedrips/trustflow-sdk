@@ -170,6 +170,24 @@ export class SDKLogger implements Logger {
 /** Default logger instance - logs errors only by default */
 export const logger = new SDKLogger();
 
+/**
+ * Reduces a thrown value to its name, message and code for logging. Transport
+ * errors (Axios, as used by the Soroban RPC client) carry the whole request,
+ * headers included, so logging them as-is would print RPC header values such
+ * as API keys (#344).
+ */
+export function describeError(error: unknown): {
+  name?: string;
+  message: string;
+  code?: unknown;
+} {
+  if (error instanceof Error) {
+    const code = (error as { code?: unknown }).code;
+    return { name: error.name, message: error.message, code };
+  }
+  return { message: String(error) };
+}
+
 /** Create a child logger with a different prefix */
 export function createLogger(
   prefix: string,

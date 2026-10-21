@@ -75,8 +75,8 @@
     "provenance": true
   },
   "scripts": {
-    "build": "tsup && node scripts/inject-use-client.js",
-    "dev": "tsup --watch",
+    "build": "node init && tsup && node scripts/inject-use-client.js",
+    "dev": "node init && tsup --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:tests": "tsc --noEmit -p tsconfig.test.json",
     "test": "jest",

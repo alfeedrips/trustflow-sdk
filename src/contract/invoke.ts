@@ -5,7 +5,7 @@ import { TrustFlowError } from '../errors';
 import type { AccountOptions } from '../accounts/types';
 import { withTransientRetry } from '../utils/node-retry';
 import { padResourceFee } from '../utils/resource-fee';
-import { logger } from '../utils/logger';
+import { describeError, logger } from '../utils/logger';
 import type { ReadContractStateOptions } from './read';
 import { simulateTransaction } from './simulation';
 
@@ -157,7 +157,7 @@ export async function invokeContract(
       gasUsed,
     };
   } catch (e) {
-    logger.error('Contract invocation failed', { method, caller, error: e });
+    logger.error('Contract invocation failed', { method, caller, error: describeError(e) });
     const message = e instanceof Error ? e.message : String(e);
     const code = e instanceof TrustFlowError ? e.code : undefined;
     return { success: false, error: message, code };

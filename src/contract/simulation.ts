@@ -1,7 +1,7 @@
 import { rpc, Transaction, scValToNative } from '@stellar/stellar-sdk';
 import { TrustFlowError } from '../errors';
 import { withTransientRetry } from '../utils/node-retry';
-import { logger } from '../utils/logger';
+import { describeError, logger } from '../utils/logger';
 import type { ReadContractStateOptions } from './read';
 import type { ApiRetryConfig } from '../utils/http';
 
@@ -107,7 +107,7 @@ export async function simulateTransaction(
     // A `TIMEOUT` (or any typed SDK error) keeps its code rather than being
     // re-wrapped as a generic simulation failure.
     if (e instanceof TrustFlowError) throw e;
-    logger.error('Contract simulation failed', { error: e });
+    logger.error('Contract simulation failed', { error: describeError(e) });
     throw new TrustFlowError('Simulation failed', 'SIMULATION_ERROR', e);
   }
 }

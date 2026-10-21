@@ -116,6 +116,38 @@ describe('useBalance', () => {
     errorSpy.mockRestore();
   });
 
+  it('never shows the previous address balance while the new address loads', async () => {
+    const getBalance = jest
+      .fn()
+      .mockResolvedValueOnce('first-balance')
+      .mockReturnValueOnce(new Promise<string>(() => undefined));
+    const client = makeClient(getBalance);
+    const { result, rerender } = renderHook(({ address }) => useBalance(client, address), {
+      initialProps: { address: 'GA' as string | null },
+    });
+    await waitFor(() => expect(result.current.balance).toBe('first-balance'));
+
+    rerender({ address: 'GB' });
+
+    expect(result.current).toEqual({ balance: null, loading: true, error: null });
+  });
+
+  it('clears the previous address error when the address changes', async () => {
+    const getBalance = jest
+      .fn()
+      .mockRejectedValueOnce(new Error('account not found'))
+      .mockReturnValueOnce(new Promise<string>(() => undefined));
+    const client = makeClient(getBalance);
+    const { result, rerender } = renderHook(({ address }) => useBalance(client, address), {
+      initialProps: { address: 'GA' as string | null },
+    });
+    await waitFor(() => expect(result.current.error).toBe('account not found'));
+
+    rerender({ address: 'GB' });
+
+    expect(result.current).toEqual({ balance: null, loading: true, error: null });
+  });
+
   it('does not report an error after unmount when getBalance rejects', async () => {
     let rejectBalance: (reason: Error) => void = () => undefined;
     const getBalance = jest.fn().mockReturnValue(
