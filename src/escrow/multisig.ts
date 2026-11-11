@@ -370,6 +370,11 @@ export class MultiSigEscrowClient {
    * making it available to subsequent `addSignature` / `getMultiSigStatus`
    * / `submitWhenReady` calls in this process.
    *
+   * Imported signatures are not trusted on the strength of their stored
+   * `verified` flag: each one is checked again against the snapshot's
+   * transaction, and any that no longer verify are kept as unverified, so they
+   * cannot count towards the threshold (#434).
+   *
    * Conflict semantics: this overwrites any existing local operation with
    * the same `operationId` — last write wins. If two processes both mutate
    * (e.g. `addSignature`) after diverging from the same exported snapshot
@@ -393,7 +398,9 @@ export class MultiSigEscrowClient {
     this.operations.set(operation.operationId, {
       ...operation,
       signers: [...operation.signers],
-      collectedSignatures: [...operation.collectedSignatures],
+      collectedSignatures: operation.collectedSignatures.map((entry) =>
+        this._reverifyImportedEntry(entry, snapshot),
+      ),
     });
     return { ok: true, data: { operationId: operation.operationId } };
   }
@@ -430,8 +437,26 @@ export class MultiSigEscrowClient {
     if (!Array.isArray(snapshot.signers)) {
       return { ok: false, error: 'snapshot.signers must be an array' };
     }
+    for (const [index, signer] of snapshot.signers.entries()) {
+      if (typeof signer !== 'string' || !isValidStellarAddress(signer)) {
+        return { ok: false, error: `snapshot.signers[${index}] is not a valid Stellar address` };
+      }
+    }
     if (!Array.isArray(snapshot.collectedSignatures)) {
       return { ok: false, error: 'snapshot.collectedSignatures must be an array' };
+    }
+    for (const [index, entry] of snapshot.collectedSignatures.entries()) {
+      if (
+        !entry ||
+        typeof entry.signerAddress !== 'string' ||
+        typeof entry.signedXdr !== 'string' ||
+        typeof entry.addedAt !== 'number'
+      ) {
+        return {
+          ok: false,
+          error: `snapshot.collectedSignatures[${index}] must have signerAddress, signedXdr and addedAt`,
+        };
+      }
     }
     if (typeof snapshot.threshold !== 'number' || snapshot.threshold < 1) {
       return { ok: false, error: 'snapshot.threshold must be a number >= 1' };
@@ -441,6 +466,28 @@ export class MultiSigEscrowClient {
       return { ok: false, error: `snapshot.status must be one of: ${validStatuses.join(', ')}` };
     }
     return { ok: true };
+  }
+
+  /**
+   * Re-runs the signature check on an imported entry. Only an entry whose
+   * signature still verifies against the snapshot's transaction keeps
+   * `verified: true`; anything else is downgraded to unverified.
+   */
+  private _reverifyImportedEntry(
+    entry: SignatureEntry,
+    snapshot: MultiSigStateSnapshot,
+  ): SignatureEntry {
+    const verification = this._verifySignedXdr(
+      entry.signedXdr,
+      snapshot.unsignedXdr,
+      entry.signerAddress,
+      snapshot.networkPassphrase,
+    );
+    if (!verification.ok) {
+      const { verifiedAt: _verifiedAt, ...unverified } = entry;
+      return { ...unverified, verified: false };
+    }
+    return { ...entry, verified: true, verifiedAt: Date.now() };
   }
 
   private _validateInitParams(params: InitMultiSigParams): InitMultiSigResult | { ok: true } {
@@ -628,7 +675,6 @@ export class MultiSigEscrowClient {
     );
     return verifiedSigners.size;
   }
-
 
   /**
    * Merges `DecoratedSignature` entries from verified signer entries into the base envelope.

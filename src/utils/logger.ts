@@ -37,6 +37,9 @@ function redactContext(context: unknown): unknown {
     const lowerKey = key.toLowerCase();
     if (sensitiveKeys.some((k) => lowerKey.includes(k))) {
       result[key] = '[REDACTED]';
+    } else if (Array.isArray(value)) {
+      // Preserve arrays by mapping each element through redactContext
+      result[key] = value.map((item) => redactContext(item));
     } else if (value && typeof value === 'object') {
       result[key] = redactContext(value);
     } else {

@@ -355,6 +355,10 @@ client.addSignature({ operationId, signerAddress, signedXdr });
 const reExported = client.exportState(operationId); // hand the updated state back to your store
 ```
 
+`importState` does not trust the `verified` flags in a snapshot. Every imported signature is checked
+again against the transaction, and any that fail are kept as unverified, so they do not count towards
+the threshold.
+
 `importState` overwrites any existing local operation with the same `operationId` — **last write
 wins.** If two processes both mutate after diverging from the same snapshot and both re-export,
 importing one after the other discards the first's signatures rather than merging them.

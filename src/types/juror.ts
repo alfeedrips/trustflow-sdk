@@ -122,4 +122,3 @@ export interface JurorClientOptions {
   /** Lifetime of each stored salt in milliseconds; expired entries are evicted. */
   saltTtlMs?: number;
 }
-

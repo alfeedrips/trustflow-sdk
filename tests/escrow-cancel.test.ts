@@ -49,7 +49,7 @@ describe('filterUnreleasedMilestones', () => {
 describe('encodeMilestoneIndices and buildCancelArgs', () => {
   it('encodes indices into a Vec<u32> ScVal', () => {
     const encoded = encodeMilestoneIndices([0, 2]) as xdr.ScVal;
-    expect(encoded.switch()).toBe(xdr.ScValType.scvVec);
+    expect(encoded.switch().name).toBe('scvVec');
     const vec = encoded.vec();
     expect(vec).toHaveLength(2);
     expect(vec![0].u32()).toBe(0);
@@ -59,8 +59,9 @@ describe('encodeMilestoneIndices and buildCancelArgs', () => {
   it('buildCancelArgs encodes escrowId and unreleased milestone indices', () => {
     const args = buildCancelArgs('escrow-1', [1, 3]) as xdr.ScVal[];
     expect(args).toHaveLength(2);
-    expect(args[0].string()).toBe('escrow-1');
-    expect(args[1].switch()).toBe(xdr.ScValType.scvVec);
+    expect(args[0].switch().name).toBe('scvString');
+    expect(args[0].str().toString()).toBe('escrow-1');
+    expect(args[1].switch().name).toBe('scvVec');
     const vec = args[1].vec();
     expect(vec).toHaveLength(2);
     expect(vec![0].u32()).toBe(1);
@@ -101,7 +102,7 @@ describe('cancelEscrow', () => {
     const [method, args] = invokeContract.mock.calls[0];
     expect(method).toBe('cancel_escrow');
     expect(args).toHaveLength(2);
-    expect(args[0].string()).toBe('escrow-1');
+    expect(args[0].str().toString()).toBe('escrow-1');
     const vec = args[1].vec();
     expect(vec).toHaveLength(2);
     expect(vec![0].u32()).toBe(1);

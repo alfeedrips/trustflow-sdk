@@ -9,7 +9,6 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "types": ["node"],
-    "baseUrl": ".",
     "paths": {
       "@trustflow/sdk": ["../src/index.ts"],
       "@trustflow/sdk/escrow": ["../src/escrow/index.ts"],

@@ -110,6 +110,43 @@ describe('wallet module', () => {
         network: 'TESTNET',
       });
     });
+
+    /** A window exposing an Albedo wallet whose `publicKey()` reports `network`. */
+    function windowWithAlbedo(network?: string) {
+      return {
+        albedo: {
+          publicKey: jest.fn().mockResolvedValue({ pubkey: 'GBA...', token: '', network }),
+        },
+      } as any;
+    }
+
+    it('reports the network an albedo wallet is on instead of a hardcoded TESTNET', async () => {
+      global.window = windowWithAlbedo('public');
+
+      await expect(connectWallet('albedo')).resolves.toEqual({
+        type: 'albedo',
+        publicKey: 'GBA...',
+        network: 'MAINNET',
+      });
+    });
+
+    it('normalizes the albedo pubnet name to MAINNET', async () => {
+      global.window = windowWithAlbedo('pubnet');
+
+      await expect(connectWallet('albedo')).resolves.toMatchObject({ network: 'MAINNET' });
+    });
+
+    it('reports TESTNET for an albedo wallet on testnet', async () => {
+      global.window = windowWithAlbedo('testnet');
+
+      await expect(connectWallet('albedo')).resolves.toMatchObject({ network: 'TESTNET' });
+    });
+
+    it('falls back to TESTNET when albedo does not report a network', async () => {
+      global.window = windowWithAlbedo(undefined);
+
+      await expect(connectWallet('albedo')).resolves.toMatchObject({ network: 'TESTNET' });
+    });
   });
 
   describe('disconnectWallet', () => {

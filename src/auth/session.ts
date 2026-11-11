@@ -163,6 +163,51 @@ export function clearSession(scope?: string): void {
   storage.remove(scopedKey(EXPIRES_AT_KEY, scope));
 }
 
+/**
+ * Purges every session artifact the SDK may have persisted.
+ *
+ * Clears the unscoped token/address/expiry trio through the active storage
+ * adapter, then sweeps **every** `trustflow_`-prefixed key out of
+ * `localStorage` and `sessionStorage`. The sweep covers account-scoped
+ * sessions (`trustflow_token:<scope>` and friends) plus any legacy keys an
+ * earlier SDK version wrote (refresh tokens, challenge nonces), so no cached
+ * JWT, refresh token, or nonce can outlive the connection it belonged to.
+ *
+ * This is what `useWallet().disconnect()` calls (#347): after disconnect,
+ * reconnecting requires a fresh signing challenge instead of silently
+ * reusing a stored token.
+ *
+ * Note on custom backends: a storage adapter installed through
+ * {@link configureSessionStorage} is always cleared of the three base keys,
+ * but adapters that expose no key enumeration cannot be swept for
+ * scope-suffixed entries — clear those explicitly in your adapter's own
+ * teardown if you use scoped sessions with one.
+ */
+export function clearAllSessions(): void {
+  const storage = getStorage();
+  storage.remove(TOKEN_KEY);
+  storage.remove(ADDRESS_KEY);
+  storage.remove(EXPIRES_AT_KEY);
+
+  const browserStores: Array<Storage | undefined> = [
+    typeof localStorage !== 'undefined' ? localStorage : undefined,
+    typeof sessionStorage !== 'undefined' ? sessionStorage : undefined,
+  ];
+  for (const store of browserStores) {
+    if (store === undefined) continue;
+    const staleKeys: string[] = [];
+    for (let i = 0; i < store.length; i++) {
+      const key = store.key(i);
+      if (key !== null && key.startsWith('trustflow_')) {
+        staleKeys.push(key);
+      }
+    }
+    for (const key of staleKeys) {
+      store.removeItem(key);
+    }
+  }
+}
+
 /** True when the stored session is missing or past its `expiresAt`. */
 export function isSessionExpired(session: Session | null = loadSession()): boolean {
   if (!session) {
